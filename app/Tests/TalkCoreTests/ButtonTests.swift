@@ -67,31 +67,38 @@ private func tap(_ key: Key) -> [KeyEvent] {
         #expect(ButtonMapping.default.key(for: .bottom) == .code(KeyCode.returnKey))
     }
 
-    @Test func onePressIsOneTapAndHoldingDoesNotRepeat() {
+    @Test func onePressIsOneTapAndQuickReleaseNeverRepeats() {
         var m = ButtonMapper(mapping: .default)
-        #expect(m.update([.middle: true]) == tap(.code(KeyCode.downArrow)))
-        #expect(m.update([.middle: true]) == [])
-        #expect(m.update([.middle: false]) == [])
-        #expect(m.update([.middle: true]) == tap(.code(KeyCode.downArrow)))
+        #expect(m.update([.middle: true], now: 0) == tap(.code(KeyCode.downArrow)))
+        #expect(m.update([.middle: true], now: 0.1) == [])
+        #expect(m.update([.middle: false], now: 0.2) == [])
+        #expect(m.nextDeadline == nil)
+        #expect(m.update([.middle: true], now: 1) == tap(.code(KeyCode.downArrow)))
     }
 
     @Test func simultaneousPressesTapInButtonOrder() {
-        var m = ButtonMapper(mapping: .default)
-        #expect(m.update([.bottom: true, .top: true])
-                == tap(.code(KeyCode.upArrow)) + tap(.code(KeyCode.returnKey)))
+        var mapping = ButtonMapping.default
+        mapping.set(.code(KeyCode.tab), for: .bottom)
+        var m = ButtonMapper(mapping: mapping)
+        #expect(m.update([.bottom: true, .top: true], now: 0)
+                == tap(.code(KeyCode.upArrow)) + tap(.code(KeyCode.tab)))
     }
 
     @Test func unmappedButtonDoesNothing() {
         var mapping = ButtonMapping.default
         mapping.set(nil, for: .bottom)
         var m = ButtonMapper(mapping: mapping)
-        #expect(m.update([.bottom: true]) == [])
+        #expect(m.update([.bottom: true], now: 0) == [])
+        #expect(m.nextDeadline == nil)
     }
 
     @Test func mappingSurvivesSaveAndLoad() throws {
         var mapping = ButtonMapping.default
         mapping.set(.code(KeyCode.escape), for: .top)
         mapping.set(nil, for: .middle)
+        mapping.setRepeats(true, for: .top)
+        mapping.repeatDelay = 0.6
+        mapping.repeatInterval = 0.2
         let data = try JSONEncoder().encode(mapping)
         #expect(try JSONDecoder().decode(ButtonMapping.self, from: data) == mapping)
     }
@@ -106,5 +113,130 @@ private func tap(_ key: Key) -> [KeyEvent] {
                 }
             }
         }
+    }
+}
+
+@Suite("A12 auto-repeat") struct AutoRepeat {
+    // Binary-exact times and timings so deadlines compare exactly.
+    private func mapper() -> ButtonMapper {
+        var mapping = ButtonMapping.default
+        mapping.repeatDelay = 0.5
+        mapping.repeatInterval = 0.125
+        return ButtonMapper(mapping: mapping)
+    }
+
+    @Test func defaultsAreKeyboardLike() {
+        #expect(ButtonMapping.default.repeatDelay == 0.4)
+        #expect(ButtonMapping.default.repeatInterval == 0.1)
+        #expect(ButtonMapping.repeatDelayChoices.contains(0.4))
+        #expect(ButtonMapping.repeatIntervalChoices.contains(0.1))
+    }
+
+    @Test func arrowsRepeatByDefaultAndReturnDoesNot() {
+        #expect(ButtonMapping.default.repeats(for: .top))
+        #expect(ButtonMapping.default.repeats(for: .middle))
+        #expect(!ButtonMapping.default.repeats(for: .bottom))
+    }
+
+    @Test func choosingAKeyResetsItsRepeatDefault() {
+        var mapping = ButtonMapping.default
+        mapping.set(.code(KeyCode.returnKey), for: .top)
+        #expect(!mapping.repeats(for: .top))
+        mapping.set(.code(KeyCode.leftArrow), for: .bottom)
+        #expect(mapping.repeats(for: .bottom))
+    }
+
+    @Test func heldArrowRepeatsAfterTheDelayAtTheInterval() {
+        var m = mapper()
+        let down = tap(.code(KeyCode.downArrow))
+        #expect(m.update([.middle: true], now: 0) == down)
+        #expect(m.nextDeadline == 0.5)
+        #expect(m.update([.middle: true], now: 0.25) == [])
+        #expect(m.update([.middle: true], now: 0.5) == down)
+        #expect(m.nextDeadline == 0.625)
+        #expect(m.update([.middle: true], now: 0.625) == down)
+        #expect(m.update([.middle: false], now: 0.7) == [])
+        #expect(m.nextDeadline == nil)
+        #expect(m.update([.middle: false], now: 1.0) == [])
+    }
+
+    @Test func repeatCanBeTurnedOnForOtherKeys() {
+        var mapping = ButtonMapping.default
+        mapping.set(.code(KeyCode.tab), for: .bottom)
+        #expect(!mapping.repeats(for: .bottom))
+        mapping.setRepeats(true, for: .bottom)
+        var m = ButtonMapper(mapping: mapping)
+        _ = m.update([.bottom: true], now: 0)
+        #expect(m.update([.bottom: true], now: 0.4) == tap(.code(KeyCode.tab)))
+    }
+
+    @Test func fallingBehindSendsOneRepeatNotABurst() {
+        var m = mapper()
+        _ = m.update([.middle: true], now: 0)
+        #expect(m.update([.middle: true], now: 2.0) == tap(.code(KeyCode.downArrow)))
+        #expect(m.nextDeadline == 2.125)
+    }
+
+    @Test func eachHeldButtonRepeatsOnItsOwnSchedule() {
+        var m = mapper()
+        _ = m.update([.top: true], now: 0)
+        _ = m.update([.top: true, .middle: true], now: 0.25)
+        #expect(m.nextDeadline == 0.5)
+        #expect(m.update([.top: true, .middle: true], now: 0.5) == tap(.code(KeyCode.upArrow)))
+        #expect(m.nextDeadline == 0.625)
+        #expect(m.update([.top: true, .middle: true], now: 0.75)
+                == tap(.code(KeyCode.upArrow)) + tap(.code(KeyCode.downArrow)))
+    }
+}
+
+@Suite("A13 Enter and Escape need a deliberate click") struct ConfirmKeys {
+    @Test(arguments: [KeyCode.returnKey, KeyCode.escape])
+    func quickClickSendsOnRelease(code: UInt16) {
+        var mapping = ButtonMapping.default
+        mapping.set(.code(code), for: .bottom)
+        var m = ButtonMapper(mapping: mapping)
+        #expect(m.update([.bottom: true], now: 0) == [])
+        #expect(m.update([.bottom: false], now: 0.25) == tap(.code(code)))
+    }
+
+    @Test(arguments: [KeyCode.returnKey, KeyCode.escape])
+    func holdingCancels(code: UInt16) {
+        var mapping = ButtonMapping.default
+        mapping.set(.code(code), for: .bottom)
+        var m = ButtonMapper(mapping: mapping)
+        _ = m.update([.bottom: true], now: 0)
+        #expect(m.nextDeadline == nil)
+        #expect(m.update([.bottom: true], now: 2) == [])
+        #expect(m.update([.bottom: false], now: 2.5) == [])
+    }
+
+    @Test func justUnderTheLimitStillCounts() {
+        var m = ButtonMapper(mapping: .default)
+        _ = m.update([.bottom: true], now: 0)
+        #expect(m.update([.bottom: false], now: ButtonMapping.confirmMaxHold - 0.01)
+                == tap(.code(KeyCode.returnKey)))
+    }
+
+    @Test func confirmKeysCannotRepeat() {
+        var mapping = ButtonMapping.default
+        mapping.setRepeats(true, for: .bottom)
+        #expect(!mapping.repeats(for: .bottom))
+        #expect(!ButtonMapping.canRepeat(.code(KeyCode.escape)))
+        #expect(ButtonMapping.canRepeat(.code(KeyCode.downArrow)))
+    }
+
+    @Test func anyButtonMappedToEnterBehavesTheSame() {
+        var mapping = ButtonMapping.default
+        mapping.set(.code(KeyCode.returnKey), for: .top)
+        var m = ButtonMapper(mapping: mapping)
+        #expect(m.update([.top: true], now: 0) == [])
+        #expect(m.update([.top: false], now: 0.25) == tap(.code(KeyCode.returnKey)))
+    }
+
+    @Test func otherButtonsKeepWorkingWhileEnterIsHeld() {
+        var m = ButtonMapper(mapping: .default)
+        _ = m.update([.bottom: true], now: 0)
+        #expect(m.update([.bottom: true, .middle: true], now: 0.25)
+                == tap(.code(KeyCode.downArrow)))
     }
 }

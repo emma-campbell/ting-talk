@@ -16,6 +16,8 @@ These are hardware checks that can't be automated. Each one is tied to a require
 | M10 | D7 | Record the CalDigit input while pressing each button, alone and while squeezing. | Each button's tone is at least 30 dB above the noise floor, the other tone bins stay at the floor, and the tones never show up in a dictation transcript. |
 | M11 | A11 | In Claude Code, when it asks a multiple-choice question, use top (orange) and middle (white) to move and bottom (gray) to confirm. | Each click moves exactly one row, white submits, and holding a button doesn't repeat. |
 | M12 | D1, D2, D7 | Copy `firmware/bench_gc.py` to the Ting, run it from the REPL, and record the CalDigit for 60 s. | Both 18 kHz and 17 kHz appear every second for the whole run, including after the forced `gc.collect()` at 5 s. |
+| M13 | A12 | In Claude Code's question list, hold middle (↓), then hold bottom (Return). Change the repeat delay and rate in Settings and repeat. | ↓ moves once, then repeats after the delay at the chosen rate. Changes take effect immediately. |
+| M14 | A13 | On a Claude Code question, hold the Enter button for about 1 s, then release. Then click it quickly. | The hold sends nothing and the question stays open. The quick click submits once, on release. |
 
 ## Log
 
@@ -29,3 +31,5 @@ These are hardware checks that can't be automated. Each one is tied to a require
 | 2026-11-14 | M10 | Pass | Top (16 kHz), middle (17 kHz), and bottom (19 kHz) each arrive at about 40 dB through the CalDigit, with the other tone bins at the floor. Quick taps are detectable. |
 | 2026-11-14 | M12 | Pass | Found while testing M10: the line-out went silent about 19 s after start (5 s with a forced collect) because `line_out`, `gain`, `hpf`, and `silence` were unreferenced after `start_audio()` returned. After `_audio_chain` keeps them alive, it ran 44 s clean with the forced collect. |
 | 2026-11-14 | M11 | Pass | Answered a Claude Code multiple-choice question with the buttons: middle ↓ ×2, top ↑ ×2, middle ↓, bottom Return chose row 2. One tap per click, no repeat. |
+| 2026-11-14 | M13 | Pass | Held middle (↓): first tap on press, first repeat 0.41 s later, then every 0.10 s, matching the defaults. Delay and rate changes not yet tried. |
+| 2026-11-14 | M14 | Pass | On a Claude Code question, a 1 s hold of the Return button did nothing, and a quick click submitted on release. |

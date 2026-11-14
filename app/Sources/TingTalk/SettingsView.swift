@@ -30,8 +30,21 @@ struct SettingsView: View {
                             Text(choice.title).tag(choice.key)
                         }
                     }
+                    Toggle("Repeat while held", isOn: repeatBinding(for: button))
+                        .disabled(!(monitor.buttonMapping.key(for: button).map(ButtonMapping.canRepeat) ?? false))
+                        .padding(.leading)
                 }
-                Text("One key press per click, sent to whichever app is in front.")
+                Picker("Repeat delay", selection: timingBinding(\.repeatDelay)) {
+                    ForEach(ButtonMapping.repeatDelayChoices, id: \.self) { Text(seconds($0)).tag($0) }
+                }
+                Picker("Repeat rate", selection: timingBinding(\.repeatInterval)) {
+                    ForEach(ButtonMapping.repeatIntervalChoices, id: \.self) {
+                        Text("every \(seconds($0))").tag($0)
+                    }
+                }
+                Text("Keys go to whichever app is in front. Arrows repeat by default. "
+                     + "Return and Escape are sent only on a quick click, when you let go; "
+                     + "holding them sends nothing, so they never submit or cancel by accident.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -87,6 +100,30 @@ struct SettingsView: View {
                 mapping.set(key, for: button)
                 monitor.buttonMapping = mapping
             })
+    }
+
+    private func repeatBinding(for button: TingButton) -> Binding<Bool> {
+        Binding(
+            get: { monitor.buttonMapping.repeats(for: button) },
+            set: { on in
+                var mapping = monitor.buttonMapping
+                mapping.setRepeats(on, for: button)
+                monitor.buttonMapping = mapping
+            })
+    }
+
+    private func timingBinding(_ field: WritableKeyPath<ButtonMapping, TimeInterval>) -> Binding<TimeInterval> {
+        Binding(
+            get: { monitor.buttonMapping[keyPath: field] },
+            set: { value in
+                var mapping = monitor.buttonMapping
+                mapping[keyPath: field] = value
+                monitor.buttonMapping = mapping
+            })
+    }
+
+    private func seconds(_ value: TimeInterval) -> String {
+        value.formatted(.number.precision(.fractionLength(2...2))) + " s"
     }
 
     private func inputSelection(_ selected: String?) -> Binding<String?> {

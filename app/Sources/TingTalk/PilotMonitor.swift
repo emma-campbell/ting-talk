@@ -47,13 +47,31 @@ final class PilotMonitor {
     private var buttons = ButtonMapper(mapping: UserDefaults.standard.data(forKey: "buttonMapping")
         .flatMap { try? JSONDecoder().decode(ButtonMapping.self, from: $0) } ?? .default)
 
+    private var repeatTimer: Task<Void, Never>?
+
     /// Called with every tone's state, in `Tones.all` order, when any changes.
     private func tonesChanged(_ states: [Bool]) {
         isTalking = states[0]
-        let pressed = Dictionary(uniqueKeysWithValues: zip(TingButton.allCases, states.dropFirst()))
-        let events = buttons.update(pressed)
-        if !events.isEmpty { log("buttons=\(pressed.filter(\.value).keys.map(\.rawValue)) send=\(events)") }
+        driveButtons(Dictionary(uniqueKeysWithValues: zip(TingButton.allCases, states.dropFirst())))
+    }
+
+    /// Sends taps for new presses and due repeats, then comes back at the
+    /// mapper's next deadline so repeats continue while a button is held (A12).
+    private func driveButtons(_ states: [TingButton: Bool] = [:]) {
+        let events = buttons.update(states, now: now)
+        let keys = events.compactMap { if case .down(let key) = $0 { "\(key)" } else { nil } }
+        if !keys.isEmpty {
+            let held = states.isEmpty ? "repeat" : states.filter(\.value).keys.map(\.rawValue).sorted().joined(separator: "+")
+            log(String(format: "%.2f", now) + " buttons [\(held)] -> \(keys.joined(separator: ", "))")
+        }
         KeySender.send(events)
+        repeatTimer?.cancel()
+        guard let due = buttons.nextDeadline else { return }
+        repeatTimer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, due - (self?.now ?? due))))
+            guard !Task.isCancelled else { return }
+            self?.driveButtons()
+        }
     }
 
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
@@ -189,7 +207,8 @@ final class PilotMonitor {
         engine?.stop()
         engine = nil
         isTalking = false
-        _ = buttons.update(Dictionary(uniqueKeysWithValues: TingButton.allCases.map { ($0, false) }))
+        repeatTimer?.cancel()
+        _ = buttons.update(Dictionary(uniqueKeysWithValues: TingButton.allCases.map { ($0, false) }), now: now)
         status = .stopped
     }
 
