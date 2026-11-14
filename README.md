@@ -123,3 +123,9 @@ This leans heavily on other people's digging:
 - [ep-2350-usb-mic](https://github.com/JR-One-Yard/ep-2350-usb-mic), the reference for the audio chain.
 - [open-ting](https://github.com/au42/open-ting), reverse-engineering of the stock firmware.
 - [awesome-te](https://github.com/bnjreece/awesome-te#ep-2350-ting-fx), where I found all of the above.
+
+## License
+
+MIT. See [LICENSE](LICENSE). The vendored Adafruit libraries in `firmware/lib` keep their own MIT notices.
+
+If you build on this, a link back here would be lovely. It's not required, just appreciated.
