@@ -14,8 +14,8 @@ jobs:
     name: Firmware logic (pytest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: uv sync --locked
       - run: uv run pytest -q
 
@@ -23,7 +23,7 @@ jobs:
     name: App tests and build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain
         run: |
           xcodebuild -version
@@ -34,8 +34,9 @@ jobs:
         run: scripts/build-app.sh "0.0.0-ci.${{ github.run_number }}" "${{ github.run_number }}"
       - name: Check the app bundle
         run: scripts/check-app.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: TingTalk-${{ github.sha }}
+          # Upload the zip as-is (named TingTalk.zip) instead of zipping it again.
           path: dist/TingTalk.zip
+          archive: false
           retention-days: 14

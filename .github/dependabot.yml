@@ -1,0 +1,11 @@
+# Opens a PR when an action we use releases a new version, so workflows don't
+# drift onto deprecated runtimes (like the Node 20 actions this replaced).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
