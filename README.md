@@ -30,7 +30,7 @@ Why tones over a cable instead of USB? The USB-C port sits under the lower lid, 
 
 - **An EP-2350.** I've only tested the **FX MIC** variant. The Ting variant should be the same board, but its buttons are different colours.
 - **An audio input that accepts a line-level signal**, for the coiled cable. I use the audio-in jack on a **CalDigit TS3** dock. A USB audio adapter with a line or mic input should also work, but I haven't tried one. The Mac's own headphone jack **won't work**: it's a headphone/headset jack, not a line input, so it can't record the Ting. It won't damage anything; it just won't hear it.
-- **A Mac** with Xcode installed, to build the app. I've only built it on Apple silicon.
+- **An Apple silicon Mac** (M1 or later) running macOS 14 or newer. There's no Intel build. Xcode is only needed if you build the app yourself.
 - **A USB-C cable that carries data**, for setup only. A charge-only cable shows nothing at all, which is confusing.
 - **2 × AAA batteries** for day-to-day use.
 - **A dictation tool with a toggle shortcut.** Today that has to be **double-tap ⌘**: I set my Raycast dictation hotkey to that. Choosing your own shortcut is planned but not built yet (see "Known gaps" below).
@@ -56,19 +56,19 @@ firmware/install.sh
 
 Then restart the Ting so it picks up `boot.py`: press the small button above the USB-C port, and squeeze the handle if it stays dark.
 
-### 3. Run the Mac app
+### 3. Build and open the Mac app
 
 ```sh
-cd app
-swift run TingTalk
+scripts/build-app.sh
+open dist/TingTalk.app
 ```
 
-A microphone icon appears in the menu bar. There's no Dock icon. The first time, macOS asks for two permissions:
+A microphone icon appears in the menu bar. There's no Dock icon. The first time, a **setup window** walks you through two permissions, one at a time:
 
 - **Microphone**, so the app can listen for the tones.
-- **Accessibility**, so it can press keys for you.
+- **Accessibility**, so it can press keys for you. The step ticks off by itself once you switch TingTalk on in System Settings.
 
-While you're running it with `swift run`, macOS grants these to your **terminal app**, not to TingTalk. A proper app bundle is on the list.
+Then it asks you to squeeze the handle and press a button to check everything's heard. You can reopen it any time from the menu (**Setup…**).
 
 ### 4. Plug in the coiled cable and configure
 
@@ -93,7 +93,7 @@ Things I know about. If you find something that isn't on this list, that's usefu
 
 - **The dictation shortcut is fixed to double-tap ⌘ (toggle).** Choosing a different shortcut, or a hold-to-talk tool, isn't built yet.
 - **The tool can get out of step.** In toggle mode the app can't see whether your dictation tool is actually on. If you stop dictation some other way (Esc, or the tool timing out), the next squeeze stops it instead of starting it. One more squeeze puts it back in step.
-- **It isn't a real `.app` yet.** It runs from a terminal and borrows the terminal's permissions, and it can't start at login.
+- **It isn't notarized**, and it can't start at login yet. Downloaded builds need right-click → Open the first time, and may ask for Accessibility again after an update.
 - **Whether the tones stay out of transcripts** hasn't been checked carefully. I haven't noticed any problems, but I haven't tested for them deliberately either.
 - **Plugging USB back in while the Ting is running on battery** can leave the `CIRCUITPY` drive read-only. Restart the Ting (the small button above the USB-C port, then squeeze if it stays dark) and it's writable again.
 - **The tones are fairly quiet.** Detection is reliable on my setup, but other audio inputs might need them louder.
@@ -105,9 +105,15 @@ Download the stock firmware from [teenage engineering](https://teenage.engineeri
 ## Development
 
 ```sh
-uv run pytest            # firmware logic (firmware/lib), runs on your Mac
-cd app && swift test     # app logic: tone detection, triggers, button mapping, settings
+uv run pytest                   # firmware logic (firmware/lib), runs on your Mac
+cd app && swift test            # app logic: tone detection, triggers, button mapping, settings
+scripts/build-app.sh 0.1.0 1    # build dist/TingTalk.app (Apple silicon, ad-hoc signed)
+scripts/check-app.sh            # verify the built bundle
 ```
+
+If you're rebuilding often, sign with your own Apple Development certificate (`SIGN_IDENTITY="Apple Development: …" scripts/build-app.sh`). With ad-hoc signing, macOS treats every build as a new app and asks for Accessibility again.
+
+CI runs both test suites on every pull request and attaches a built `TingTalk.app` to the run. Pushing a version tag (`v0.1.0`) publishes a GitHub Release with the app attached. The app isn't notarized yet, so the first time you open a downloaded copy, right-click it and choose **Open**.
 
 - `firmware/`: CircuitPython for the Ting. Logic that can be tested lives in `firmware/lib` as plain Python, so the same file runs on the device and under pytest.
 - `app/`: the Swift package. `TalkCore` is pure and tested; `TingTalk` is the menu-bar app.

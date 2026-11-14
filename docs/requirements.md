@@ -25,7 +25,12 @@ Each requirement names how it's verified. **T** means an automated test that is 
 
   *T for the trigger and mode state machine, M for each preset.*
 - **A4. Stays in sync.** In toggle mode, a missed or bounced pilot edge can't leave the tool out of step for longer than one squeeze. Toggles are spaced at least 0.4 s apart. *T.*
-- **A5. Permissions.** On first run the app requests Microphone (to listen for the pilot) and Accessibility (to send keys). It explains why, and shows clearly when a permission is missing. *M.*
+- **A5. Permissions, with a first-run walkthrough.** The app never asks for permissions at launch, because two system prompts at once race each other and one can disappear. A setup window walks through one step at a time:
+  1. **Microphone**, with an explanation and a button that triggers the system prompt.
+  2. **Accessibility**, with an explanation and a button that opens the right System Settings page. The step completes on its own when the app sees the switch turned on.
+  3. **Test it** (optional): squeeze the handle and press a button, each ticking off live when heard.
+
+  Listening only starts once the microphone is allowed. The window opens on first launch and whenever a permission is missing, and the menu can reopen it ("Setup…"). Setup is done once both permissions are granted; the test step can be skipped. With ad-hoc signing, macOS may drop the Accessibility grant when the app is updated, and the walkthrough reappears to re-grant it. *T (step order and completion), M (M6).*
 - **A6. Background.** The app runs as a menu-bar app with no Dock icon and can start at login. *M.*
 - **A7. Resilience.** If the input device disappears and comes back, the app recovers without a restart. If that happens mid-talk in toggle mode, it sends the stop trigger. *T (state machine), M (unplug test).*
 - **A8. Pause listening.** The pilot only reaches the Mac as audio, so the app has to capture the input continuously, and macOS shows its orange mic-in-use indicator the whole time. Apps can't hide it. A menu toggle pauses listening: capture stops completely, so the indicator goes away, and the menu-bar icon shows the paused state. The setting persists across launches. Pausing mid-talk in toggle mode sends the stop trigger. *M (indicator on and off, persistence), T (stop on pause, with the trigger state machine).*
