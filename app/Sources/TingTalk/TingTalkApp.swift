@@ -8,7 +8,7 @@ struct TingTalkApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            StatusMenu(monitor: delegate.monitor)
+            StatusMenu(monitor: delegate.monitor, setup: delegate.setup)
         } label: {
             let monitor = delegate.monitor
             Image(systemName: monitor.isPaused ? "mic.slash" : monitor.isTalking ? "mic.fill" : "mic")
@@ -22,32 +22,31 @@ struct TingTalkApp: App {
 
 private struct StatusMenu: View {
     @Bindable var monitor: PilotMonitor
-    @State private var trusted = KeySender.isTrusted
+    let setup: SetupCoordinator
 
     var body: some View {
         Text(monitor.isTalking ? "Talking" : "Idle")
         switch monitor.status {
         case .stopped: Text("Not listening")
+        case .needsMicrophone: Text("Waiting for microphone permission")
         case .paused: Text("Paused: not listening")
         case .listening(let device): Text("Listening on \(device)")
         case .failed(let reason): Text(reason)
         }
         Text("Dictation: \(monitor.binding.label)")
-        if !trusted {
-            // A5: without Accessibility the key presses are silently dropped.
-            Button("⚠︎ Allow Accessibility to send shortcuts…") {
-                KeySender.requestTrust()
-            }
+        if !setup.state.isComplete {
+            // A5: without both permissions nothing works; say so plainly.
+            Button("⚠︎ Finish setup…") { setup.showWindow() }
         }
         Divider()
         Toggle("Pause listening", isOn: $monitor.isPaused)
         Button("Restart listening") { monitor.start() }
             .disabled(monitor.isPaused)
+        Button("Setup…") { setup.showWindow() }
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")
         Button("Quit") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
-            .onAppear { trusted = KeySender.isTrusted }
     }
 }
 
@@ -55,11 +54,13 @@ private struct StatusMenu: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let monitor = PilotMonitor()
     let device = TingDevice()
+    lazy var setup = SetupCoordinator(monitor: monitor)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu-bar only: no Dock icon (A6).
         NSApp.setActivationPolicy(.accessory)
-        if !KeySender.isTrusted { KeySender.requestTrust() }
+        // A5: no permission prompts at launch; the walkthrough asks one at a time.
+        if setup.state.needsWindow { setup.showWindow() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

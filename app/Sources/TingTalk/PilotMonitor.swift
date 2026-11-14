@@ -9,6 +9,7 @@ import TalkCore
 final class PilotMonitor {
     enum Status: Equatable {
         case stopped
+        case needsMicrophone
         case paused
         case listening(device: String)
         case failed(String)
@@ -24,6 +25,8 @@ final class PilotMonitor {
     }
 
     private(set) var status = Status.stopped
+    /// Buttons currently held, for the walkthrough's live test.
+    private(set) var pressedButtons: Set<TingButton> = []
     private(set) var isTalking = false {
         didSet { if isTalking != oldValue { drive() } }
     }
@@ -52,6 +55,7 @@ final class PilotMonitor {
     /// Called with every tone's state, in `Tones.all` order, when any changes.
     private func tonesChanged(_ states: [Bool]) {
         isTalking = states[0]
+        pressedButtons = Set(zip(TingButton.allCases, states.dropFirst()).filter(\.1).map(\.0))
         driveButtons(Dictionary(uniqueKeysWithValues: zip(TingButton.allCases, states.dropFirst())))
     }
 
@@ -120,6 +124,12 @@ final class PilotMonitor {
         stop()
         if isPaused {
             status = .paused
+            return
+        }
+        // A5: opening the input would trigger the microphone prompt on its own,
+        // racing the walkthrough. Wait until the walkthrough has it allowed.
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            status = .needsMicrophone
             return
         }
         let inputs = AudioDevices.inputs()
@@ -207,6 +217,7 @@ final class PilotMonitor {
         engine?.stop()
         engine = nil
         isTalking = false
+        pressedButtons = []
         repeatTimer?.cancel()
         _ = buttons.update(Dictionary(uniqueKeysWithValues: TingButton.allCases.map { ($0, false) }), now: now)
         status = .stopped

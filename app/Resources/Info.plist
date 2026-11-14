@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.emmacampbell.TingTalk</string>
+	<key>CFBundleName</key>
+	<string>TingTalk</string>
+	<key>CFBundleDisplayName</key>
+	<string>TingTalk</string>
+	<key>CFBundleExecutable</key>
+	<string>TingTalk</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__BUILD__</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<!-- Menu-bar only: no Dock icon (A6). -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TingTalk listens to the input your EP-2350's cable is plugged into, to hear the tones it plays when you squeeze the handle or press a button. Nothing is recorded or sent anywhere.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Emma Campbell. MIT License.</string>
+</dict>
+</plist>

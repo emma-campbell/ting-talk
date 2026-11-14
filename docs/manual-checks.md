@@ -9,7 +9,7 @@ These are hardware checks that can't be automated. Each one is tied to a require
 | M3 | D4 | While holding, turn the volume screw from minimum to maximum. | Voice level follows the screw. The pilot level doesn't change. |
 | M4 | D5 | Run on batteries with USB unplugged. Wait past the idle timeout, then squeeze. | The unit powers down when idle. Time from squeeze to pilot is recorded below and judged acceptable. |
 | M5 | A3 | For each preset, squeeze and talk, then release. | The tool starts and stops, or hold-mode keys are held for the right duration. |
-| M6 | A5 | First launch on a clean user account, or after resetting TCC. | The app asks for Microphone and Accessibility with an explanation, and shows a missing permission clearly. |
+| M6 | A5 | First launch of a fresh build (or after `tccutil reset Microphone dev.emmacampbell.TingTalk` and `tccutil reset Accessibility dev.emmacampbell.TingTalk`). | The setup window opens and asks for one permission at a time with no prompts racing. The Accessibility step ticks off on its own after the switch is turned on. The test step ticks on squeeze and button. Setup… reopens it from the menu. |
 | M7 | A6 | Enable "start at login", then log out and back in. | Menu-bar icon appears and there's no Dock icon. |
 | M8 | A7 | Unplug the CalDigit, or the coiled cable, mid-talk, then replug. | In toggle mode the stop trigger fires on unplug, and detection resumes on replug without restarting the app. |
 | M9 | A8 | Toggle "Pause listening" on, then off. Quit and relaunch while paused. | The orange mic indicator disappears while paused and returns when resumed. The icon shows paused. Paused state survives relaunch. |
@@ -33,3 +33,5 @@ These are hardware checks that can't be automated. Each one is tied to a require
 | 2026-11-14 | M11 | Pass | Answered a Claude Code multiple-choice question with the buttons: middle ↓ ×2, top ↑ ×2, middle ↓, bottom Return chose row 2. One tap per click, no repeat. |
 | 2026-11-14 | M13 | Pass | Held middle (↓): first tap on press, first repeat 0.41 s later, then every 0.10 s, matching the defaults. Delay and rate changes not yet tried. |
 | 2026-11-14 | M14 | Pass | On a Claude Code question, a 1 s hold of the Return button did nothing, and a quick click submitted on release. |
+| 2026-11-14 | M6 | Fail | First launch of the built `.app` showed the Microphone and Accessibility prompts at the same time, and the Accessibility prompt vanished before it could be used. This led to the A5 walkthrough. |
+| 2026-11-14 | M6 | Pass | Fresh signed build with permissions reset: the setup window asked for one permission at a time, Accessibility ticked off by itself once switched on, and the test step ticked on squeeze and button. |
