@@ -3,8 +3,8 @@ import AudioToolbox
 import Observation
 import TalkCore
 
-/// Listens to an input device for the Ting's pilot and drives the dictation
-/// trigger from it.
+/// Listens to an input device for the Ting's tones: the talk pilot drives the
+/// dictation trigger, and each button tone sends its mapped key (A11).
 @MainActor @Observable
 final class PilotMonitor {
     enum Status: Equatable {
@@ -35,6 +35,26 @@ final class PilotMonitor {
     private var watchdog: Task<Void, Never>?
 
     var binding: TriggerBinding { controller.binding }
+
+    /// A11. Persisted as JSON; the default suits Claude Code's questions.
+    var buttonMapping: ButtonMapping {
+        get { buttons.mapping }
+        set {
+            buttons.mapping = newValue
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "buttonMapping")
+        }
+    }
+    private var buttons = ButtonMapper(mapping: UserDefaults.standard.data(forKey: "buttonMapping")
+        .flatMap { try? JSONDecoder().decode(ButtonMapping.self, from: $0) } ?? .default)
+
+    /// Called with every tone's state, in `Tones.all` order, when any changes.
+    private func tonesChanged(_ states: [Bool]) {
+        isTalking = states[0]
+        let pressed = Dictionary(uniqueKeysWithValues: zip(TingButton.allCases, states.dropFirst()))
+        let events = buttons.update(pressed)
+        if !events.isEmpty { log("buttons=\(pressed.filter(\.value).keys.map(\.rawValue)) send=\(events)") }
+        KeySender.send(events)
+    }
 
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
@@ -103,8 +123,8 @@ final class PilotMonitor {
         }
 
         let format = input.outputFormat(forBus: 0)
-        let tap = DetectorTap(sampleRate: format.sampleRate, now: now) { [weak self] talking in
-            Task { @MainActor in self?.isTalking = talking }
+        let tap = DetectorTap(sampleRate: format.sampleRate, now: now) { [weak self] states in
+            Task { @MainActor in self?.tonesChanged(states) }
         }
         Self.install(tap, on: input, format: format)
         do {
@@ -169,6 +189,7 @@ final class PilotMonitor {
         engine?.stop()
         engine = nil
         isTalking = false
+        _ = buttons.update(Dictionary(uniqueKeysWithValues: TingButton.allCases.map { ($0, false) }))
         status = .stopped
     }
 
@@ -179,16 +200,16 @@ final class PilotMonitor {
     }
 }
 
-/// Owns the detector on the audio thread; reports only state changes.
+/// Owns the tone detectors on the audio thread; reports only state changes.
 private final class DetectorTap: @unchecked Sendable {
-    private var detector: PilotDetector
-    private var last = false
-    private let onChange: @Sendable (Bool) -> Void
+    private var bank: ToneBank
+    private var last = [Bool](repeating: false, count: Tones.all.count)
+    private let onChange: @Sendable ([Bool]) -> Void
     private let lock = NSLock()
     private var _lastBuffer: TimeInterval
 
-    init(sampleRate: Double, now: TimeInterval, onChange: @escaping @Sendable (Bool) -> Void) {
-        detector = PilotDetector(sampleRate: sampleRate)
+    init(sampleRate: Double, now: TimeInterval, onChange: @escaping @Sendable ([Bool]) -> Void) {
+        bank = ToneBank(sampleRate: sampleRate, frequencies: Tones.all)
         _lastBuffer = now  // grace period until the first buffer
         self.onChange = onChange
     }
@@ -201,10 +222,10 @@ private final class DetectorTap: @unchecked Sendable {
         lock.withLock { _lastBuffer = arrived }
         guard let channel = buffer.floatChannelData?[0] else { return }
         let samples = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
-        let talking = detector.process(samples)
-        if talking != last {
-            last = talking
-            onChange(talking)
+        let states = bank.process(samples)
+        if states != last {
+            last = states
+            onChange(states)
         }
     }
 }

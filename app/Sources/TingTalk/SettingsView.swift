@@ -23,6 +23,18 @@ struct SettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            Section("Buttons") {
+                ForEach(TingButton.allCases, id: \.self) { button in
+                    Picker(button.label, selection: keyBinding(for: button)) {
+                        ForEach(Self.keyChoices, id: \.title) { choice in
+                            Text(choice.title).tag(choice.key)
+                        }
+                    }
+                }
+                Text("One key press per click, sent to whichever app is in front.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
             Section("Ting") {
                 Picker("Power off after", selection: sleepAfter) {
                     ForEach(choices, id: \.self) { seconds in
@@ -53,6 +65,28 @@ struct SettingsView: View {
                 try? await Task.sleep(for: .seconds(2))
             }
         }
+    }
+
+    private static let keyChoices: [(title: String, key: Key?)] = [
+        ("Nothing", nil),
+        ("↑ Up arrow", .code(KeyCode.upArrow)),
+        ("↓ Down arrow", .code(KeyCode.downArrow)),
+        ("← Left arrow", .code(KeyCode.leftArrow)),
+        ("→ Right arrow", .code(KeyCode.rightArrow)),
+        ("↩ Return", .code(KeyCode.returnKey)),
+        ("⎋ Escape", .code(KeyCode.escape)),
+        ("⇥ Tab", .code(KeyCode.tab)),
+        ("Space", .code(KeyCode.space)),
+    ]
+
+    private func keyBinding(for button: TingButton) -> Binding<Key?> {
+        Binding(
+            get: { monitor.buttonMapping.key(for: button) },
+            set: { key in
+                var mapping = monitor.buttonMapping
+                mapping.set(key, for: button)
+                monitor.buttonMapping = mapping
+            })
     }
 
     private func inputSelection(_ selected: String?) -> Binding<String?> {
@@ -89,6 +123,16 @@ struct SettingsView: View {
                 + "it (squeeze the handle if it stays dark)."
         case .connected:
             "Applies on batteries only. While plugged into a computer the Ting stays on."
+        }
+    }
+}
+
+private extension TingButton {
+    var label: String {
+        switch self {
+        case .top: "Top (orange)"
+        case .middle: "Middle (white)"
+        case .bottom: "Bottom (gray)"
         }
     }
 }

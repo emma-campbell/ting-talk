@@ -26,6 +26,10 @@ class TalkWindow:
             self._last_talk = now
         return talking
 
+    def touch(self, now):
+        """Record activity other than talking (a button press) for sleep."""
+        self._last_talk = max(self._last_talk, now)
+
     def idle(self, now):
         """True once nobody has talked for `sleep_after` seconds (0 = never)."""
         if self.sleep_after <= 0 or now < self._open_until:

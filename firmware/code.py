@@ -19,6 +19,7 @@ import supervisor
 import synthio
 
 import adafruit_nau88l21
+from buttons import ButtonTone
 from talk import TalkWindow
 
 SAMPLE_RATE = 48000  # the rate the NAU88L21 clock setup is tested at
@@ -28,7 +29,17 @@ HPF_HZ = 100  # cuts handling rumble, leaves speech alone
 RELEASE_TAIL = 0.3  # keep the mic open briefly after release so last words land (D1)
 
 PILOT_HZ = 18000  # above speech; must match the Mac app
-PILOT_LEVEL = 0.1  # mixer level of the pilot, relative to full-scale voice
+# D7: one tone per side button, (pin, Hz, name). Must match the Mac app.
+BUTTONS = (
+    ("BUTTON_TOP", 16000, "top"),  # orange on the FX MIC
+    ("BUTTON_MIDDLE", 17000, "middle"),  # white
+    ("BUTTON_BOTTOM", 19000, "bottom"),  # gray
+)
+# Up to four tones at once share the synth, so each note is a quarter of full
+# scale and the mixer makes up for it: every tone still comes out at 0.1 of
+# full-scale voice, the level measured in M1, and all four together can't clip.
+TONE_AMPLITUDE = 0.25
+PILOT_LEVEL = 0.4
 
 # D5: power off after this long without a squeeze, on batteries only.
 # Set in CIRCUITPY/settings.toml (the TingTalk app writes it); 0 = never.
@@ -55,8 +66,11 @@ def sine_table(size=256):
     )
 
 
+_audio_chain = []
+
+
 def start_audio():
-    """Wire mic → filters → mixer (+ pilot synth) → line-out. Returns (mixer, capture, synth, pilot)."""
+    """Wire mic → filters → mixer (+ pilot synth) → line-out. Returns (mixer, capture, synth, pilot, codec)."""
     # The codec slaves to the I2S bit clock, and only I2SOut generates it, so
     # something must be playing before configure_clocks(). Silence will do;
     # the mixer replaces it below.
@@ -104,7 +118,7 @@ def start_audio():
     )
     mixer = audiomixer.Mixer(voice_count=2, **fmt)
     synth = synthio.Synthesizer(sample_rate=SAMPLE_RATE, channel_count=1)
-    pilot = synthio.Note(frequency=PILOT_HZ, waveform=sine_table())
+    pilot = synthio.Note(frequency=PILOT_HZ, waveform=sine_table(), amplitude=TONE_AMPLITUDE)
 
     # Wire from the output backwards. I2SOut.play() knocks the external-clock
     # capture off its frame, and only a play() *on the mic* re-locks it, so
@@ -116,7 +130,13 @@ def start_audio():
     mixer.play(synth, voice=1, loop=True)
     gain.play(hpf)
     hpf.play(capture)
-    return mixer, capture, synth, pilot
+    # The hardware keeps using every object in the chain, but nothing in Python
+    # refers to line_out, gain, hpf or silence once this returns. The garbage
+    # collector then frees one mid-stream and the line-out goes silent for good
+    # while the main loop carries on (found by forcing gc.collect()). Keep them
+    # all referenced for the program's life.
+    _audio_chain[:] = [silence, line_out, codec, capture, hpf, gain, mixer, synth, pilot]
+    return mixer, capture, synth, pilot, codec
 
 
 def power_off(leds):
@@ -144,7 +164,7 @@ def main():
     status = output(board.LED_WHITE1, True)
     errors = output(board.LED_RED1)
     try:
-        mixer, capture, synth, pilot = start_audio()
+        mixer, capture, synth, pilot, codec = start_audio()
     except Exception as exc:
         print("startup failed:", exc)
         while True:
@@ -155,6 +175,13 @@ def main():
     # HANDLE_OUT reads high as soon as the handle starts moving in.
     handle = pulled_up(board.HANDLE_OUT)
     window = TalkWindow(tail=RELEASE_TAIL, sleep_after=SLEEP_AFTER, started=time.monotonic())
+    wave = sine_table()
+    buttons = [
+        (pulled_up(getattr(board, pin)), ButtonTone(),
+         synthio.Note(frequency=hz, waveform=wave, amplitude=TONE_AMPLITUDE), name)
+        for pin, hz, name in BUTTONS
+    ]
+    playing = [False] * len(buttons)
     held_was = None
     talking = False
     # D5: time from power-on to ready is most of the wake latency after sleep.
@@ -175,6 +202,18 @@ def main():
             else:
                 synth.release(pilot)
         mixer.voice[0].level = volume.value / 65535 if talking else 0.0
+        now = time.monotonic()
+        for i, (pin, timing, note, name) in enumerate(buttons):
+            # The side buttons short to ground: pressed reads low.
+            on = timing.update(not pin.value, now)
+            if on != playing[i]:
+                playing[i] = on
+                if on:
+                    synth.press(note)
+                    window.touch(now)
+                    print(name, "tone on")
+                else:
+                    synth.release(note)
         if capture.overflow:
             print("capture overflow")
         now = time.monotonic()
@@ -185,4 +224,5 @@ def main():
         time.sleep(0.02)
 
 
-main()
+if __name__ == "__main__":  # importable by bench scripts without running
+    main()
