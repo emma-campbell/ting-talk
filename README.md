@@ -113,7 +113,7 @@ scripts/check-app.sh            # verify the built bundle
 
 If you're rebuilding often, sign with your own Apple Development certificate (`SIGN_IDENTITY="Apple Development: …" scripts/build-app.sh`). With ad-hoc signing, macOS treats every build as a new app and asks for Accessibility again.
 
-CI runs both test suites on every pull request and attaches a built `TingTalk.app` to the run. Pushing a version tag (`v0.1.0`) publishes a GitHub Release with the app attached. The app isn't notarized yet, so the first time you open a downloaded copy, right-click it and choose **Open**.
+CI runs both test suites on every pull request and attaches a built `TingTalk.app` to the run. Releases are cut by hand: run the **Release** workflow from the Actions tab and give it a version. It tests and builds `main`, then publishes a GitHub Release with the app attached. The app isn't notarized yet, so the first time you open a downloaded copy, right-click it and choose **Open**.
 
 - `firmware/`: CircuitPython for the Ting. Logic that can be tested lives in `firmware/lib` as plain Python, so the same file runs on the device and under pytest.
 - `app/`: the Swift package. `TalkCore` is pure and tested; `TingTalk` is the menu-bar app.

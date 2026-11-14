@@ -28,7 +28,7 @@ SIGN_IDENTITY="Apple Development: Emma Campbell (ML66NNUUN4)" scripts/build-app.
 scripts/check-app.sh           # verify the bundle: Info.plist keys, arm64, minos 14, hardened runtime, mic entitlement
 ```
 
-CI (`.github/workflows/ci.yml`) runs pytest and `swift test` on every PR and push to `main`, and attaches a built `TingTalk.zip` to the run. Pushing a `v*` tag runs `release.yml`, which publishes a GitHub Release with the zip attached. The app is ad-hoc signed, not notarized, so a downloaded copy needs right-click → Open the first time. The bundle (`app/Resources/Info.plist`, `TingTalk.entitlements`) has its own ID, `dev.emmacampbell.TingTalk`, so macOS grants permissions to it rather than to a terminal.
+CI (`.github/workflows/ci.yml`) runs pytest and `swift test` on every PR and push to `main`, and attaches a built `TingTalk.zip` to the run. Releases are manual only: run `release.yml` from the Actions tab or with `gh workflow run release.yml -f version=0.1.0`. It refuses anything but `main`, a malformed version, or an existing release, then tests, builds, checks, and creates the `v<version>` tag and GitHub Release together. The app is ad-hoc signed, not notarized, so a downloaded copy needs right-click → Open the first time. The bundle (`app/Resources/Info.plist`, `TingTalk.entitlements`) has its own ID, `dev.emmacampbell.TingTalk`, so macOS grants permissions to it rather than to a terminal.
 
 Keep device-side logic that needs testing as pure modules in `firmware/lib/` (like `talk.py`). Don't put `firmware/` itself on the path, because `firmware/code.py` shadows the stdlib `code` module and breaks pytest.
 
