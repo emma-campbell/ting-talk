@@ -5,6 +5,7 @@ struct SettingsView: View {
     let device: TingDevice
     let monitor: PilotMonitor
     @State private var inputs: [String] = []
+    @State private var verboseLogging = Logging.verbose
 
     var body: some View {
         Form {
@@ -47,6 +48,19 @@ struct SettingsView: View {
                      + "holding them sends nothing, so they never submit or cancel by accident.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+            Section("Diagnostics") {
+                Toggle("Verbose logging", isOn: $verboseLogging)
+                    .onChange(of: verboseLogging) { Logging.verbose = verboseLogging }
+                HStack {
+                    Text("Writes audio and key timing to ~/Library/Logs/TingTalk.log, "
+                         + "four lines a second. Leave it off unless you're chasing a problem.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([Logging.file]) }
+                        .disabled(!FileManager.default.fileExists(atPath: Logging.file.path))
+                }
             }
             Section("Ting") {
                 Picker("Power off after", selection: sleepAfter) {

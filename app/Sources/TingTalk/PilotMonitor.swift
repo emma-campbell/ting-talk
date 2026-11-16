@@ -151,8 +151,14 @@ final class PilotMonitor {
         }
 
         let format = input.outputFormat(forBus: 0)
-        let tap = DetectorTap(sampleRate: format.sampleRate, now: now) { [weak self] states in
-            Task { @MainActor in self?.tonesChanged(states) }
+        let tap = DetectorTap(sampleRate: format.sampleRate, now: now) { [weak self] states, sent in
+            Task { @MainActor in
+                if Logging.verbose, let self {
+                    log(String(format: "tones %@ (main actor %.0f ms late)",
+                               states.map { $0 ? "1" : "0" }.joined(), (self.now - sent) * 1000))
+                }
+                self?.tonesChanged(states)
+            }
         }
         Self.install(tap, on: input, format: format)
         do {
@@ -234,11 +240,21 @@ final class PilotMonitor {
 private final class DetectorTap: @unchecked Sendable {
     private var bank: ToneBank
     private var last = [Bool](repeating: false, count: Tones.all.count)
-    private let onChange: @Sendable ([Bool]) -> Void
+    private let onChange: @Sendable ([Bool], TimeInterval) -> Void
     private let lock = NSLock()
     private var _lastBuffer: TimeInterval
+    private var report = Report()
 
-    init(sampleRate: Double, now: TimeInterval, onChange: @escaping @Sendable ([Bool]) -> Void) {
+    /// Debug-only tally of what arrived since the last report line.
+    private struct Report {
+        var since: TimeInterval = 0
+        var buffers = 0
+        var frames = 0
+        var maxGap: TimeInterval = 0
+        var peak: Float = 0
+    }
+
+    init(sampleRate: Double, now: TimeInterval, onChange: @escaping @Sendable ([Bool], TimeInterval) -> Void) {
         bank = ToneBank(sampleRate: sampleRate, frequencies: Tones.all)
         _lastBuffer = now  // grace period until the first buffer
         self.onChange = onChange
@@ -249,18 +265,43 @@ private final class DetectorTap: @unchecked Sendable {
 
     func process(_ buffer: AVAudioPCMBuffer) {
         let arrived = ProcessInfo.processInfo.systemUptime
-        lock.withLock { _lastBuffer = arrived }
+        let previous = lock.withLock {
+            defer { _lastBuffer = arrived }
+            return _lastBuffer
+        }
         guard let channel = buffer.floatChannelData?[0] else { return }
         let samples = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
         let states = bank.process(samples)
+        if Logging.verbose { tally(samples, gap: arrived - previous, now: arrived, states: states) }
         if states != last {
             last = states
-            onChange(states)
+            onChange(states, arrived)
         }
+    }
+
+    /// Four times a second: buffer timing, input peak, and each tone's weakest block.
+    private func tally(_ samples: UnsafeBufferPointer<Float>, gap: TimeInterval, now: TimeInterval, states: [Bool]) {
+        report.buffers += 1
+        report.frames += samples.count
+        report.maxGap = max(report.maxGap, gap)
+        report.peak = samples.reduce(report.peak) { max($0, abs($1)) }
+        guard now - report.since >= 0.25 else { return }
+        let tones = zip(Tones.all, bank.takeStats()).map { hz, s in
+            String(format: "%.0fk %d/%d fail amp>=%.4f ratio>=%.1fdB",
+                   hz / 1000, s.failed, s.blocks, s.minAmplitude, s.minRatioDB)
+        }
+        log(String(format: "audio %d bufs %d frames maxgap %.0f ms peak %.3f | ",
+                   report.buffers, report.frames, report.maxGap * 1000, report.peak)
+            + tones.joined(separator: " | ") + " | states " + states.map { $0 ? "1" : "0" }.joined())
+        report = Report(since: now)
     }
 }
 
-/// Diagnostics on stderr (visible when run with `swift run`).
+/// Diagnostics on stderr (visible when run with `swift run`), stamped with
+/// uptime. With verbose logging on they also go to ~/Library/Logs/TingTalk.log,
+/// since a Finder-launched app's stderr goes nowhere.
 func log(_ message: String) {
-    FileHandle.standardError.write(Data("[TingTalk] \(message)\n".utf8))
+    let line = Data(String(format: "[TingTalk] %.3f %@\n", ProcessInfo.processInfo.systemUptime, message).utf8)
+    FileHandle.standardError.write(line)
+    if Logging.verbose { Logging.append(line) }
 }

@@ -25,6 +25,21 @@ public struct PilotDetector {
     private var buffer: [Float] = []
     private var streak = 0
 
+    /// Diagnostics: the weakest block since the last `takeStats()`.
+    public struct Stats: Sendable {
+        public var blocks = 0
+        public var failed = 0
+        /// Lowest pilot amplitude (peak, full scale = 1) and pilot-to-neighbour ratio in dB.
+        public var minAmplitude = Float.infinity
+        public var minRatioDB = Float.infinity
+    }
+    private var stats = Stats()
+
+    public mutating func takeStats() -> Stats {
+        defer { stats = Stats() }
+        return stats
+    }
+
     /// - Parameter minAmplitude: quietest pilot (peak, full scale = 1) that
     ///   counts. The pilot measured through the CalDigit is ~0.004.
     public init(
@@ -48,17 +63,21 @@ public struct PilotDetector {
     public mutating func process(_ samples: some Collection<Float>) -> Bool {
         buffer.append(contentsOf: samples)
         while buffer.count >= Self.blockSize {
-            update(pilotPresent: isPilot(buffer[0..<Self.blockSize]))
+            let present = isPilot(buffer[0..<Self.blockSize])
+            stats.blocks += 1
+            if !present { stats.failed += 1 }
+            update(pilotPresent: present)
             buffer.removeFirst(Self.hop)
         }
         return isTalking
     }
 
-    private func isPilot(_ block: ArraySlice<Float>) -> Bool {
+    private mutating func isPilot(_ block: ArraySlice<Float>) -> Bool {
         let pilot = pilotBin.power(of: block)
-        guard pilot >= minPower else { return false }
         let neighbours = neighbourBins.reduce(0) { $0 + $1.power(of: block) } / 4
-        return pilot >= minRatio * neighbours
+        stats.minAmplitude = min(stats.minAmplitude, pilot.squareRoot() * 4 / Float(Self.blockSize))
+        stats.minRatioDB = min(stats.minRatioDB, 10 * log10(pilot / max(neighbours, .leastNonzeroMagnitude)))
+        return pilot >= minPower && pilot >= minRatio * neighbours
     }
 
     private mutating func update(pilotPresent: Bool) {

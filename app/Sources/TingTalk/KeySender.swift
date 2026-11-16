@@ -19,7 +19,16 @@ enum KeySender {
     /// `wait` blocks until done (used when quitting).
     static func send(_ events: [KeyEvent], wait: Bool = false) {
         guard !events.isEmpty else { return }
-        let work: @Sendable () -> Void = { post(events) }
+        let queued = ProcessInfo.processInfo.systemUptime
+        let work: @Sendable () -> Void = {
+            let start = ProcessInfo.processInfo.systemUptime
+            post(events)
+            if Logging.verbose {
+                let end = ProcessInfo.processInfo.systemUptime
+                log(String(format: "posted %d events: waited %.0f ms, took %.0f ms",
+                           events.count, (start - queued) * 1000, (end - start) * 1000))
+            }
+        }
         wait ? queue.sync(execute: work) : queue.async(execute: work)
     }
 
