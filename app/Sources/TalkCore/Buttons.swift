@@ -44,6 +44,11 @@ public struct ToneBank {
     public mutating func process(_ samples: some Collection<Float>) -> [Bool] {
         detectors.indices.map { detectors[$0].process(samples) }
     }
+
+    /// Diagnostics for each tone since the last call, in `frequencies` order.
+    public mutating func takeStats() -> [PilotDetector.Stats] {
+        detectors.indices.map { detectors[$0].takeStats() }
+    }
 }
 
 /// Which key each button sends (nil sends nothing), whether holding it
