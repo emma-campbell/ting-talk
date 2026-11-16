@@ -6,6 +6,9 @@ struct SettingsView: View {
     let monitor: PilotMonitor
     @State private var inputs: [String] = []
     @State private var verboseLogging = Logging.verbose
+    /// Shows the custom controls even when the custom binding happens to
+    /// match a preset.
+    @State private var isCustom = false
 
     var body: some View {
         Form {
@@ -21,6 +24,31 @@ struct SettingsView: View {
                 }
                 Text("The input the Ting's coiled cable is plugged into. Set the same input "
                      + "as the microphone in your dictation tool.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Dictation") {
+                Picker("Tool", selection: toolSelection) {
+                    ForEach(TriggerPreset.all, id: \.name) { Text($0.name).tag($0.name) }
+                    Text("Custom").tag(Self.custom)
+                }
+                if isCustom || TriggerPreset.matching(monitor.binding) == nil {
+                    LabeledContent("Shortcut") {
+                        ShortcutField(shortcut: shortcutBinding(\.keys), taps: monitor.binding.taps)
+                    }
+                    Picker("Mode", selection: shortcutBinding(\.mode)) {
+                        Text("Toggle").tag(TriggerBinding.Mode.toggle)
+                        Text("Hold").tag(TriggerBinding.Mode.hold)
+                    }
+                    .pickerStyle(.segmented)
+                    Picker("Press", selection: shortcutBinding(\.taps)) {
+                        Text("Once").tag(1)
+                        Text("Twice").tag(2)
+                    }
+                    .disabled(monitor.binding.mode == .hold)
+                }
+                Text("Set the same shortcut in your dictation tool. Toggle presses it once when "
+                     + "you squeeze and again when you let go; hold keeps it down while you talk.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -92,6 +120,31 @@ struct SettingsView: View {
                 try? await Task.sleep(for: .seconds(2))
             }
         }
+    }
+
+    private static let custom = "Custom"
+
+    private var toolSelection: Binding<String> {
+        Binding(
+            get: {
+                isCustom ? Self.custom : TriggerPreset.matching(monitor.binding)?.name ?? Self.custom
+            },
+            set: { name in
+                isCustom = name == Self.custom
+                if let preset = TriggerPreset.all.first(where: { $0.name == name }) {
+                    monitor.binding = preset.binding
+                }
+            })
+    }
+
+    private func shortcutBinding<Value>(_ field: WritableKeyPath<TriggerBinding, Value>) -> Binding<Value> {
+        Binding(
+            get: { monitor.binding[keyPath: field] },
+            set: { value in
+                var binding = monitor.binding
+                binding[keyPath: field] = value
+                monitor.binding = binding
+            })
     }
 
     private static let keyChoices: [(title: String, key: Key?)] = [
@@ -185,5 +238,55 @@ private extension TingButton {
         case .middle: "Middle (white)"
         case .bottom: "Bottom (gray)"
         }
+    }
+}
+
+private extension TriggerBinding {
+    var keys: [Key] {
+        get { shortcut.keys }
+        set { shortcut.keys = newValue }
+    }
+
+    var taps: Int {
+        get { shortcut.taps }
+        set { shortcut.taps = newValue }
+    }
+}
+
+/// Shows a shortcut and records a new one on click (A3): press a chord, or
+/// press and release modifiers on their own (e.g. fn). Escape cancels.
+private struct ShortcutField: View {
+    @Binding var shortcut: [Key]
+    /// Only for the label; the Press picker sets it.
+    let taps: Int
+    @State private var monitor: Any?
+    @State private var recorder = ShortcutRecorder()
+
+    var body: some View {
+        Button(monitor == nil ? Shortcut(keys: shortcut, taps: taps).label(keyName: KeyNames.name) : "Type a shortcut…") {
+            monitor == nil ? startRecording() : stopRecording()
+        }
+        .onDisappear(perform: stopRecording)
+    }
+
+    private func startRecording() {
+        recorder = ShortcutRecorder()
+        // Swallows keys while recording, so ⌘Q and friends don't act.
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            let result = event.type == .keyDown
+                ? recorder.keyDown(event.keyCode)
+                : recorder.modifiersChanged(KeyNames.modifiers(event.modifierFlags))
+            switch result {
+            case .keys(let keys): shortcut = keys; stopRecording()
+            case .cancelled: stopRecording()
+            case nil: break
+            }
+            return nil
+        }
+    }
+
+    private func stopRecording() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
     }
 }

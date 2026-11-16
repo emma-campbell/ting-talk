@@ -32,12 +32,25 @@ final class PilotMonitor {
     }
 
     private var engine: AVAudioEngine?
-    private var controller = TriggerController(binding: .raycast)
+    private var controller = TriggerController(binding: UserDefaults.standard.data(forKey: "triggerBinding")
+        .flatMap { try? JSONDecoder().decode(TriggerBinding.self, from: $0) } ?? .default)
     private var deadline: Task<Void, Never>?
     private var retry: Task<Void, Never>?
     private var watchdog: Task<Void, Never>?
 
-    var binding: TriggerBinding { controller.binding }
+    /// A3. Persisted as JSON. Changing it first stops any dictation in
+    /// progress with the old shortcut.
+    var binding: TriggerBinding {
+        get { controller.binding }
+        set {
+            guard newValue != controller.binding else { return }
+            deadline?.cancel()
+            let events = controller.setBinding(newValue, now: now)
+            log("binding=\(newValue) send=\(events)")
+            KeySender.send(events)
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "triggerBinding")
+        }
+    }
 
     /// A11. Persisted as JSON; the default suits Claude Code's questions.
     var buttonMapping: ButtonMapping {

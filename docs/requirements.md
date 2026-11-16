@@ -21,7 +21,7 @@ Each requirement names how it's verified. **T** means an automated test that is 
 - **A3. Configurable dictation tool.** The user picks what "talking" drives:
   - a **trigger**: a key chord (e.g. ⌥Space), a modifier double-tap (e.g. double ⌘), or a held key (e.g. fn).
   - a **mode**: *toggle*, where the trigger fires once on start and once on stop (Raycast), or *hold*, where the key stays down while talking.
-  - Presets are provided for common tools, and the user can also define a custom trigger.
+  - Presets are provided for common tools (Raycast, macOS Dictation, Superwhisper, Wispr Flow), and the user can also define a custom trigger by recording it in Settings: a key pressed with modifiers held is a chord, and modifiers pressed and released on their own are a modifier trigger. Escape on its own cancels recording. The choice persists, and changing it mid-talk stops dictation with the old trigger first.
 
   *T for the trigger and mode state machine, M for each preset.*
 - **A4. Stays in sync.** In toggle mode, a missed or bounced pilot edge can't leave the tool out of step for longer than one squeeze. Toggles are spaced at least 0.4 s apart. *T.*
