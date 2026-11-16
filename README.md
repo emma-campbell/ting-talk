@@ -17,7 +17,7 @@ On the Mac, a small menu-bar app (**TingTalk**) listens to the input the cable i
 
 | Control | Tone | Default action |
 |---|---|---|
-| Handle (squeeze) | 18 kHz | Start/stop dictation (double-tap ⌘, the shortcut I use for Raycast) |
+| Handle (squeeze) | 18 kHz | Start/stop dictation (your tool's shortcut; double-tap ⌘ for Raycast by default) |
 | Top button (orange) | 16 kHz | ↑, repeats while held |
 | Middle button (white) | 17 kHz | ↓, repeats while held |
 | Bottom button (gray) | 19 kHz | Return, on a **quick click** only |
@@ -33,7 +33,7 @@ Why tones over a cable instead of USB? The USB-C port sits under the lower lid, 
 - **An Apple silicon Mac** (M1 or later) running macOS 14 or newer. There's no Intel build. Xcode is only needed if you build the app yourself.
 - **A USB-C cable that carries data**, for setup only. A charge-only cable shows nothing at all, which is confusing.
 - **2 × AAA batteries** for day-to-day use.
-- **A dictation tool with a toggle shortcut.** Today that has to be **double-tap ⌘**: I set my Raycast dictation hotkey to that. Choosing your own shortcut is planned but not built yet (see "Known gaps" below).
+- **A dictation tool you can start with a keyboard shortcut.** There are presets for Raycast (double-tap ⌘, which is what I use), macOS Dictation, Superwhisper, and Wispr Flow, or you can record your own.
 
 ## Setup (manual, for now)
 
@@ -75,6 +75,7 @@ Then it asks you to squeeze the handle and press a button to check everything's 
 1. Plug the Ting's coiled cable into your audio input.
 2. Open **Settings…** from the menu-bar icon (or press ⌘,):
    - **Audio input:** the input the cable is plugged into. It defaults to anything named "CalDigit".
+   - **Dictation:** your tool, or **Custom** to record a shortcut. Click the shortcut and press a chord (⌃⌥D) or press and release modifiers on their own (fn, or ⌘ with **Press: Twice**). **Toggle** presses it once to start and again to stop; **Hold** keeps it down while you talk. Set the same shortcut in your tool.
    - **Buttons:** a key for each button, whether it repeats while held, and the repeat delay and rate.
    - **Ting → Power off after:** how long the Ting waits before switching itself off on battery (default 10 minutes). Changing this needs the Ting connected over USB-C, because the coiled cable only carries sound one way.
 3. In your **dictation tool**, choose the **same input** as its microphone, so it hears the Ting.
@@ -91,7 +92,7 @@ Squeeze, talk, let go. The menu-bar icon fills in while you're talking.
 
 Things I know about. If you find something that isn't on this list, that's useful.
 
-- **The dictation shortcut is fixed to double-tap ⌘ (toggle).** Choosing a different shortcut, or a hold-to-talk tool, isn't built yet.
+- **Only the Raycast preset is tested.** The others use each tool's default shortcut as far as I know it, and a tool that listens for fn at a low level might not see the app's synthetic fn presses.
 - **The tool can get out of step.** In toggle mode the app can't see whether your dictation tool is actually on. If you stop dictation some other way (Esc, or the tool timing out), the next squeeze stops it instead of starting it. One more squeeze puts it back in step.
 - **It isn't notarized**, and it can't start at login yet. Downloaded builds need right-click → Open the first time, and may ask for Accessibility again after an update.
 - **Whether the tones stay out of transcripts** hasn't been checked carefully. I haven't noticed any problems, but I haven't tested for them deliberately either.

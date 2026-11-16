@@ -33,7 +33,7 @@ private struct StatusMenu: View {
         case .listening(let device): Text("Listening on \(device)")
         case .failed(let reason): Text(reason)
         }
-        Text("Dictation: \(monitor.binding.label)")
+        Text("Dictation: \(KeyNames.describe(monitor.binding))")
         if !setup.state.isComplete {
             // A5: without both permissions nothing works; say so plainly.
             Button("⚠︎ Finish setup…") { setup.showWindow() }
@@ -66,27 +66,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Don't leave the dictation tool running after we're gone.
         monitor.shutdown()
-    }
-}
-
-private extension TriggerBinding {
-    var label: String {
-        let keys = shortcut.keys.map(\.symbol).joined()
-        let pressed = shortcut.taps == 2 ? "double-tap \(keys)" : keys
-        return self == .raycast ? "Raycast (\(pressed), toggle)" : "\(pressed), \(mode.rawValue)"
-    }
-}
-
-private extension Key {
-    var symbol: String {
-        switch self {
-        case .command: "⌘"
-        case .option: "⌥"
-        case .control: "⌃"
-        case .shift: "⇧"
-        case .function: "fn"
-        case .code(KeyCode.space): "Space"
-        case .code(let code): "key \(code)"
-        }
     }
 }
